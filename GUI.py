@@ -26,14 +26,16 @@ USO:
 import cv2
 import numpy as np
 import tkinter as tk
+import tkinter.font as tkfont
 from tkinter import ttk, messagebox, filedialog
 from PIL import Image, ImageTk
 import threading
 from pathlib import Path
 import time
 from datetime import datetime
+import platform
 
-# Importar nuestro stitcher
+# Importar nuestro stitcher (archivo en subcarpeta 'panoramicaCreator')
 from panorama_stitcher import PanoramaStitcher
 
 
@@ -48,9 +50,37 @@ class PanoramaCreatorGUI:
         """
         # Configuración de la ventana principal
         self.window = tk.Tk()
-        self.window.title("🌅 Panorama Creator - iPhone Camera Control")
+        self.window.title("Panorama Creator")
         self.window.geometry("1200x800")
-        self.window.configure(bg='#2b2b2b')
+        # Tema minimalista y claro
+        self.window.configure(bg='#ffffff')
+        
+        # --- Fuente moderna centralizada ---
+        # Elegir una familia moderna según plataforma y configurar fuentes por defecto
+        sys_plat = platform.system()
+        if sys_plat == 'Darwin':
+            base_family = 'Helvetica Neue'  # común en macOS
+        elif sys_plat == 'Windows':
+            base_family = 'Segoe UI'
+        else:
+            base_family = 'DejaVu Sans'
+
+        self.base_font_family = base_family
+
+        try:
+            default_font = tkfont.nametofont('TkDefaultFont')
+            default_font.configure(family=self.base_font_family, size=11)
+        except Exception:
+            # Si no es posible configurar, fallback silencioso
+            pass
+
+        # Ajustes para otros tipos de fuentes usados por Tk
+        for name, size in (('TkHeadingFont', 12), ('TkTextFont', 11), ('TkFixedFont', 10)):
+            try:
+                f = tkfont.nametofont(name)
+                f.configure(family=self.base_font_family, size=size)
+            except Exception:
+                pass
         
         # Variables de estado
         self.cap = None                    # Captura de video (iPhone)
@@ -79,35 +109,33 @@ class PanoramaCreatorGUI:
         Construye toda la interfaz de usuario.
         """
         # ==================== TÍTULO ====================
-        title_frame = tk.Frame(self.window, bg='#1e1e1e', height=60)
+        title_frame = tk.Frame(self.window, bg='#ffffff', height=60)
         title_frame.pack(fill='x', pady=(0, 10))
-        
         title_label = tk.Label(
             title_frame,
-            text="🌅 PANORAMA CREATOR",
-            font=('Helvetica', 24, 'bold'),
-            bg='#1e1e1e',
-            fg='#00ff88'
+            text="PANORAMA CREATOR",
+            font=(self.base_font_family, 22, 'bold'),
+            bg='#ffffff',
+            fg='#111111'
         )
         title_label.pack(pady=10)
-        
         subtitle_label = tk.Label(
             title_frame,
-            text="Control de Cámara iPhone • Stitching Automático",
-            font=('Helvetica', 11),
-            bg='#1e1e1e',
-            fg='#888888'
+            text="Control de cámara • Stitching automático",
+            font=(self.base_font_family, 10),
+            bg='#ffffff',
+            fg='#666666'
         )
         subtitle_label.pack()
         
         # ==================== CONTENEDOR PRINCIPAL ====================
-        main_container = tk.Frame(self.window, bg='#2b2b2b')
+        main_container = tk.Frame(self.window, bg='#ffffff')
         main_container.pack(fill='both', expand=True, padx=20, pady=10)
         
         # Dividir en dos columnas: izquierda (controles) y derecha (preview)
         
         # ========== COLUMNA IZQUIERDA: CONTROLES ==========
-        left_panel = tk.Frame(main_container, bg='#2b2b2b', width=400)
+        left_panel = tk.Frame(main_container, bg='#ffffff', width=400)
         left_panel.pack(side='left', fill='y', padx=(0, 10))
         
         # --- Panel de Estado de Conexión ---
@@ -123,7 +151,7 @@ class PanoramaCreatorGUI:
         self.create_status_panel(left_panel)
         
         # ========== COLUMNA DERECHA: PREVIEW ==========
-        right_panel = tk.Frame(main_container, bg='#1e1e1e')
+        right_panel = tk.Frame(main_container, bg='#ffffff')
         right_panel.pack(side='right', fill='both', expand=True)
         
         self.create_preview_panel(right_panel)
@@ -134,66 +162,69 @@ class PanoramaCreatorGUI:
         """
         frame = tk.LabelFrame(
             parent,
-            text="📱 Conexión iPhone",
-            font=('Helvetica', 12, 'bold'),
-            bg='#363636',
-            fg='#ffffff',
-            padx=15,
-            pady=15
+            text="Conexión",
+            font=(self.base_font_family, 12, 'bold'),
+            bg='#f7f7f7',
+            fg='#222222',
+            padx=12,
+            pady=12,
+            relief='flat'
         )
         frame.pack(fill='x', pady=(0, 15))
         
         # Estado de conexión
         self.connection_label = tk.Label(
             frame,
-            text="🔴 Desconectado",
-            font=('Helvetica', 11),
-            bg='#363636',
-            fg='#ff4444'
+            text="Desconectado",
+            font=(self.base_font_family, 11),
+            bg='#f7f7f7',
+            fg='#cc0000'
         )
         self.connection_label.pack(pady=(0, 10))
         
         # Botones de conexión
-        btn_frame = tk.Frame(frame, bg='#363636')
+        btn_frame = tk.Frame(frame, bg='#f7f7f7')
         btn_frame.pack()
         
         self.connect_btn = tk.Button(
             btn_frame,
-            text="🔄 Conectar",
+            text="Conectar",
             command=self.connect_camera,
-            font=('Helvetica', 10),
-            bg='#4CAF50',
-            fg='white',
-            padx=15,
-            pady=8,
-            cursor='hand2'
+            font=(self.base_font_family, 10),
+            bg='#f0f0f0',
+            fg='#111111',
+            padx=12,
+            pady=6,
+            cursor='hand2',
+            relief='flat'
         )
         self.connect_btn.pack(side='left', padx=5)
         
         self.disconnect_btn = tk.Button(
             btn_frame,
-            text="⏸️ Desconectar",
+            text="Desconectar",
             command=self.disconnect_camera,
-            font=('Helvetica', 10),
-            bg='#f44336',
-            fg='white',
-            padx=15,
-            pady=8,
+            font=(self.base_font_family, 10),
+            bg='#f0f0f0',
+            fg='#111111',
+            padx=12,
+            pady=6,
             cursor='hand2',
-            state='disabled'
+            state='disabled',
+            relief='flat'
         )
         self.disconnect_btn.pack(side='left', padx=5)
         
         # Selector de cámara
-        camera_frame = tk.Frame(frame, bg='#363636')
+        camera_frame = tk.Frame(frame, bg='#f7f7f7')
         camera_frame.pack(pady=(10, 0))
         
         tk.Label(
             camera_frame,
             text="Índice de cámara:",
-            bg='#363636',
-            fg='#cccccc',
-            font=('Helvetica', 9)
+            bg='#f7f7f7',
+            fg='#333333',
+            font=(self.base_font_family, 9)
         ).pack(side='left', padx=(0, 5))
         
         camera_spinbox = tk.Spinbox(
@@ -202,7 +233,7 @@ class PanoramaCreatorGUI:
             to=5,
             textvariable=self.camera_index_var,
             width=5,
-            font=('Helvetica', 9)
+            font=(self.base_font_family, 9)
         )
         camera_spinbox.pack(side='left')
         
@@ -212,25 +243,26 @@ class PanoramaCreatorGUI:
         """
         frame = tk.LabelFrame(
             parent,
-            text="⚙️ Configuración de Captura",
-            font=('Helvetica', 12, 'bold'),
-            bg='#363636',
-            fg='#ffffff',
-            padx=15,
-            pady=15
+            text="Configuración",
+            font=(self.base_font_family, 12, 'bold'),
+            bg='#f7f7f7',
+            fg='#222222',
+            padx=12,
+            pady=12,
+            relief='flat'
         )
         frame.pack(fill='x', pady=(0, 15))
         
         # Número de fotos
-        photos_frame = tk.Frame(frame, bg='#363636')
+        photos_frame = tk.Frame(frame, bg='#f7f7f7')
         photos_frame.pack(fill='x', pady=(0, 10))
         
         tk.Label(
             photos_frame,
-            text="📸 Número de fotos:",
-            bg='#363636',
-            fg='#cccccc',
-            font=('Helvetica', 10)
+            text="Número de fotos:",
+            bg='#f7f7f7',
+            fg='#333333',
+            font=(self.base_font_family, 10)
         ).pack(anchor='w')
         
         photos_scale = tk.Scale(
@@ -239,24 +271,24 @@ class PanoramaCreatorGUI:
             to=20,
             orient='horizontal',
             variable=self.n_photos_var,
-            bg='#363636',
-            fg='#ffffff',
+            bg='#f7f7f7',
+            fg='#333333',
             highlightthickness=0,
-            troughcolor='#555555',
-            activebackground='#00ff88'
+            troughcolor='#dddddd',
+            activebackground='#aaaaaa'
         )
         photos_scale.pack(fill='x', pady=(5, 0))
         
         # Intervalo entre fotos
-        interval_frame = tk.Frame(frame, bg='#363636')
+        interval_frame = tk.Frame(frame, bg='#f7f7f7')
         interval_frame.pack(fill='x', pady=(0, 10))
         
         tk.Label(
             interval_frame,
-            text="⏱️ Intervalo (segundos):",
-            bg='#363636',
-            fg='#cccccc',
-            font=('Helvetica', 10)
+            text="Intervalo (segundos):",
+            bg='#f7f7f7',
+            fg='#333333',
+            font=(self.base_font_family, 10)
         ).pack(anchor='w')
         
         interval_scale = tk.Scale(
@@ -266,11 +298,11 @@ class PanoramaCreatorGUI:
             resolution=0.5,
             orient='horizontal',
             variable=self.interval_var,
-            bg='#363636',
-            fg='#ffffff',
+            bg='#f7f7f7',
+            fg='#333333',
             highlightthickness=0,
-            troughcolor='#555555',
-            activebackground='#00ff88'
+            troughcolor='#dddddd',
+            activebackground='#aaaaaa'
         )
         interval_scale.pack(fill='x', pady=(5, 0))
         
@@ -278,9 +310,9 @@ class PanoramaCreatorGUI:
         self.config_summary = tk.Label(
             frame,
             text=self.get_config_summary(),
-            bg='#363636',
-            fg='#00ff88',
-            font=('Helvetica', 9, 'italic'),
+            bg='#f7f7f7',
+            fg='#333333',
+            font=(self.base_font_family, 9, 'italic'),
             justify='left'
         )
         self.config_summary.pack(anchor='w', pady=(10, 0))
@@ -295,27 +327,29 @@ class PanoramaCreatorGUI:
         """
         frame = tk.LabelFrame(
             parent,
-            text="🎬 Control de Captura",
-            font=('Helvetica', 12, 'bold'),
-            bg='#363636',
-            fg='#ffffff',
-            padx=15,
-            pady=15
+            text="Captura",
+            font=(self.base_font_family, 12, 'bold'),
+            bg='#f7f7f7',
+            fg='#222222',
+            padx=12,
+            pady=12,
+            relief='flat'
         )
         frame.pack(fill='x', pady=(0, 15))
         
         # Botón principal de captura
         self.capture_btn = tk.Button(
             frame,
-            text="📸 INICIAR CAPTURA",
+            text="Iniciar captura",
             command=self.start_capture_sequence,
-            font=('Helvetica', 13, 'bold'),
-            bg='#2196F3',
-            fg='white',
-            padx=20,
-            pady=15,
+            font=(self.base_font_family, 12, 'bold'),
+            bg='#f0f0f0',
+            fg='#111111',
+            padx=16,
+            pady=10,
             cursor='hand2',
-            state='disabled'
+            state='disabled',
+            relief='flat'
         )
         self.capture_btn.pack(fill='x', pady=(0, 10))
         
@@ -332,44 +366,47 @@ class PanoramaCreatorGUI:
         # Botón de procesamiento
         self.process_btn = tk.Button(
             frame,
-            text="🔗 CREAR PANORAMA",
+            text="Crear panorama",
             command=self.create_panorama,
-            font=('Helvetica', 12, 'bold'),
-            bg='#FF9800',
-            fg='white',
-            padx=20,
-            pady=12,
+            font=(self.base_font_family, 12, 'bold'),
+            bg='#f0f0f0',
+            fg='#111111',
+            padx=16,
+            pady=10,
             cursor='hand2',
-            state='disabled'
+            state='disabled',
+            relief='flat'
         )
         self.process_btn.pack(fill='x', pady=(0, 10))
         
         # Botón de guardar
         self.save_btn = tk.Button(
             frame,
-            text="💾 Guardar Panorama",
+            text="Guardar panorama",
             command=self.save_panorama,
-            font=('Helvetica', 10),
-            bg='#4CAF50',
-            fg='white',
-            padx=15,
-            pady=10,
+            font=(self.base_font_family, 10),
+            bg='#f0f0f0',
+            fg='#111111',
+            padx=12,
+            pady=8,
             cursor='hand2',
-            state='disabled'
+            state='disabled',
+            relief='flat'
         )
         self.save_btn.pack(fill='x', pady=(0, 5))
         
         # Botón para subir una secuencia desde el file system (nueva opción)
         self.upload_btn = tk.Button(
             frame,
-            text="📁 Subir Secuencia",
+            text="Subir secuencia",
             command=self.import_sequence_from_files,
-            font=('Helvetica', 10),
-            bg='#607D8B',
-            fg='white',
-            padx=15,
-            pady=10,
-            cursor='hand2'
+            font=(self.base_font_family, 10),
+            bg='#f0f0f0',
+            fg='#111111',
+            padx=12,
+            pady=8,
+            cursor='hand2',
+            relief='flat'
         )
         self.upload_btn.pack(fill='x', pady=(0, 8))
 
@@ -378,7 +415,7 @@ class PanoramaCreatorGUI:
             frame,
             text="🗑️ Nueva Secuencia",
             command=self.clear_sequence,
-            font=('Helvetica', 10),
+            font=(self.base_font_family, 10),
             bg='#757575',
             fg='white',
             padx=15,
@@ -393,10 +430,10 @@ class PanoramaCreatorGUI:
         """
         frame = tk.LabelFrame(
             parent,
-            text="ℹ️ Estado",
-            font=('Helvetica', 12, 'bold'),
-            bg='#363636',
-            fg='#ffffff',
+            text="Estado",
+            font=(self.base_font_family, 12, 'bold'),
+            bg='#f7f7f7',
+            fg='#222222',
             padx=15,
             pady=15
         )
@@ -406,8 +443,8 @@ class PanoramaCreatorGUI:
         self.status_text = tk.Text(
             frame,
             height=10,
-            bg='#1e1e1e',
-            fg='#00ff88',
+            bg='#ffffff',
+            fg='#222222',
             font=('Courier', 9),
             wrap='word',
             state='disabled'
@@ -425,28 +462,28 @@ class PanoramaCreatorGUI:
         # Título del preview
         preview_title = tk.Label(
             parent,
-            text="🎥 Preview en Vivo",
-            font=('Helvetica', 14, 'bold'),
-            bg='#1e1e1e',
-            fg='#00ff88'
+            text="Preview en vivo",
+            font=(self.base_font_family, 14, 'bold'),
+            bg='#ffffff',
+            fg='#111111'
         )
         preview_title.pack(pady=(10, 10))
         
         # Canvas para mostrar video/imagen
         self.preview_canvas = tk.Canvas(
             parent,
-            bg='#000000',
-            highlightthickness=2,
-            highlightbackground='#00ff88'
+            bg='#ffffff',
+            highlightthickness=1,
+            highlightbackground='#dddddd'
         )
         self.preview_canvas.pack(fill='both', expand=True, padx=10, pady=10)
         
         # Mensaje cuando no hay preview
         self.preview_canvas.create_text(
             400, 300,
-            text="📱 Esperando conexión con iPhone...",
-            fill='#888888',
-            font=('Helvetica', 14),
+            text="Esperando conexión con iPhone...",
+            fill='#999999',
+            font=(self.base_font_family, 14),
             tags='placeholder'
         )
         
@@ -539,9 +576,9 @@ class PanoramaCreatorGUI:
         self.preview_canvas.delete('all')
         self.preview_canvas.create_text(
             400, 300,
-            text="📱 Desconectado",
-            fill='#888888',
-            font=('Helvetica', 14),
+            text="Desconectado",
+            fill='#999999',
+            font=(self.base_font_family, 14),
             tags='placeholder'
         )
     
@@ -852,7 +889,7 @@ class PanoramaCreatorGUI:
                     20,
                     text=title,
                     fill='#00ff88',
-                    font=('Helvetica', 12, 'bold')
+                    font=(self.base_font_family, 12, 'bold')
                 )
     
     def save_panorama(self):
