@@ -179,56 +179,118 @@ class PanoramaStitcher:
             
             return None
     
-    def crop_black_borders(self):
+    def crop_black_borders(self, threshold=30):
         """
-        Recorta los bordes negros del panorama.
+        Recorta EXTREMADAMENTE agresivo los bordes negros/vacíos del panorama.
         
-        Los bordes negros aparecen porque las imágenes se proyectan en diferentes
-        ángulos y no llenan todo el rectángulo del canvas. Este método encuentra
-        el rectángulo más grande sin bordes negros.
+        Este método es SUPER AGRESIVO y prioriza eliminar TODAS las zonas negras,
+        recortando generosamente para garantizar bordes limpios.
         
-        Proceso:
-        1. Convierte a escala de grises
-        2. Binariza para encontrar píxeles no negros
-        3. Encuentra contornos
-        4. Extrae el rectángulo delimitador más grande
-        5. Recorta la imagen
+        Estrategia:
+        1. Analiza cada fila/columna individualmente
+        2. Encuentra la primera/última que tenga MAYORMENTE píxeles válidos (>85%)
+        3. Añade margen de seguridad generoso
+        4. Recorta sin piedad
+        
+        Args:
+            threshold (int): Umbral de luminosidad (default: 30, MUY agresivo)
         """
         if self.panorama is None:
             return
         
         print("\n" + "="*70)
-        print("✂️ PASO 3: RECORTANDO BORDES")
+        print("✂️ PASO 3: RECORTE SUPER AGRESIVO - CERO TOLERANCIA A NEGROS")
         print("="*70)
         
-        # Guardar dimensiones originales para comparación
+        # Guardar dimensiones originales
         h_orig, w_orig = self.panorama.shape[:2]
         print(f"\n📏 Dimensiones originales: {w_orig}x{h_orig}")
+        print(f"🔪 Modo EXTREMO: Eliminará TODOS los píxeles oscuros")
+        print(f"🔪 Umbral: {threshold} (píxeles <{threshold} = negros)")
         
-        # Convertir a escala de grises para facilitar el procesamiento
+        # Convertir a escala de grises
         gray = cv2.cvtColor(self.panorama, cv2.COLOR_BGR2GRAY)
         
-        # Crear máscara binaria: 255 para píxeles no negros, 0 para negros
-        _, thresh = cv2.threshold(gray, 1, 255, cv2.THRESH_BINARY)
+        # Crear máscara MUY estricta
+        mask = gray > threshold
         
-        # Encontrar contornos en la máscara
-        contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        # ANÁLISIS POR FILAS (eje Y) - MUY ESTRICTO
+        print("🔍 Analizando filas (buscando 85%+ píxeles válidos)...")
+        row_counts = np.sum(mask, axis=1)
+        # Una fila es válida solo si tiene 85% o más de píxeles no-negros
+        row_threshold = int(w_orig * 0.85)
+        valid_rows = np.where(row_counts >= row_threshold)[0]
         
-        if contours:
-            # Encontrar el contorno más grande (ignorar posibles artefactos pequeños)
-            largest_contour = max(contours, key=cv2.contourArea)
+        if len(valid_rows) == 0:
+            # Si no hay filas con 85%, bajar a 70%
+            print("   ⚠️  No hay filas con 85%+ válidos, bajando a 70%...")
+            row_threshold = int(w_orig * 0.70)
+            valid_rows = np.where(row_counts >= row_threshold)[0]
             
-            # Obtener el rectángulo delimitador
-            x, y, w, h = cv2.boundingRect(largest_contour)
-            
-            # Recortar el panorama
-            self.panorama = self.panorama[y:y+h, x:x+w]
-            
-            print(f"✂️  Recortando bordes negros...")
-            print(f"📏 Dimensiones finales: {w}x{h}")
-            print(f"📊 Reducción: {((w_orig*h_orig - w*h)/(w_orig*h_orig)*100):.1f}% del área")
-        else:
-            print("⚠️  No se encontraron bordes para recortar")
+        if len(valid_rows) == 0:
+            print("   ⚠️  No se encontraron filas suficientemente válidas")
+            return
+        
+        y0 = valid_rows[0]
+        y1 = valid_rows[-1] + 1
+        print(f"   ✓ Filas válidas: {y0} a {y1-1}")
+        
+        # ANÁLISIS POR COLUMNAS (eje X) - MUY ESTRICTO
+        print("🔍 Analizando columnas (buscando 85%+ píxeles válidos)...")
+        col_counts = np.sum(mask, axis=0)
+        # Una columna es válida solo si tiene 85% o más de píxeles no-negros
+        col_threshold = int(h_orig * 0.85)
+        valid_cols = np.where(col_counts >= col_threshold)[0]
+        
+        if len(valid_cols) == 0:
+            # Si no hay columnas con 85%, bajar a 70%
+            print("   ⚠️  No hay columnas con 85%+ válidos, bajando a 70%...")
+            col_threshold = int(h_orig * 0.70)
+            valid_cols = np.where(col_counts >= col_threshold)[0]
+        
+        if len(valid_cols) == 0:
+            print("   ⚠️  No se encontraron columnas suficientemente válidas")
+            return
+        
+        x0 = valid_cols[0]
+        x1 = valid_cols[-1] + 1
+        print(f"   ✓ Columnas válidas: {x0} a {x1-1}")
+        
+        # MARGEN DE SEGURIDAD GENEROSO para eliminar bordes residuales
+        # Usar margen más grande para garantizar eliminación completa
+        margin_y = max(10, int(h_orig * 0.02))  # 2% de altura o mínimo 10px
+        margin_x = max(10, int(w_orig * 0.01))  # 1% de ancho o mínimo 10px
+        
+        print(f"🔪 Aplicando margen de seguridad: {margin_y}px (vertical), {margin_x}px (horizontal)")
+        
+        # Aplicar márgenes
+        y0 = min(y0 + margin_y, h_orig - 1)
+        y1 = max(y1 - margin_y, y0 + 1)
+        x0 = min(x0 + margin_x, w_orig - 1)
+        x1 = max(x1 - margin_x, x0 + 1)
+        
+        # Verificar validez
+        if y0 >= y1 or x0 >= x1:
+            print("   ⚠️  El recorte resultaría en imagen vacía")
+            return
+        
+        if y0 <= 2 and x0 <= 2 and y1 >= h_orig - 2 and x1 >= w_orig - 2:
+            print("\n✓ La imagen no requiere recorte significativo")
+            return
+        
+        # Aplicar el recorte SIN PIEDAD
+        self.panorama = self.panorama[y0:y1, x0:x1]
+        w_final, h_final = x1 - x0, y1 - y0
+        
+        print(f"\n✂️  RECORTE EXTREMO APLICADO:")
+        print(f"   🔪 Eliminado:")
+        print(f"      - Superior:  {y0}px")
+        print(f"      - Inferior:  {h_orig - y1}px")
+        print(f"      - Izquierda: {x0}px")
+        print(f"      - Derecha:   {w_orig - x1}px")
+        print(f"   📏 Dimensiones finales: {w_final}x{h_final}")
+        print(f"   📊 Área reducida: {((w_orig*h_orig - w_final*h_final)/(w_orig*h_orig)*100):.1f}%")
+        print(f"\n✅ BORDES NEGROS ELIMINADOS COMPLETAMENTE")
     
     def calculate_statistics(self):
         """

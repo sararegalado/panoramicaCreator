@@ -88,11 +88,16 @@ class PanoramaCreatorGUI:
         self.captured_images = []          # Imágenes capturadas
         self.panorama = None               # Panorama resultante
         self.preview_running = False       # Estado del preview en vivo
+        self.last_sequence_from_camera = False  # True si la última secuencia vino desde la cámara
+        
+        # Timestamp de inicio para detectar conexión automática vs manual
+        import time
+        self._app_start_time = time.time()
         
         # Variables de configuración (con valores por defecto)
         self.n_photos_var = tk.IntVar(value=5)        # Número de fotos
         self.interval_var = tk.DoubleVar(value=2.0)   # Intervalo entre fotos (segundos)
-        self.camera_index_var = tk.IntVar(value=1)    # Índice de cámara (1=iPhone)
+        self.camera_index_var = tk.IntVar(value=0)    # Índice de cámara (0=primera disponible)
         
         # Directorios
         self.output_dir = Path("output")
@@ -102,7 +107,8 @@ class PanoramaCreatorGUI:
         self.setup_ui()
         
         # Intentar conectar con el iPhone automáticamente
-        self.connect_camera()
+        # Usar after para no bloquear el inicio de la UI
+        self.window.after(100, self._auto_connect)
         
     def setup_ui(self):
         """
@@ -235,7 +241,22 @@ class PanoramaCreatorGUI:
             width=5,
             font=(self.base_font_family, 9)
         )
-        camera_spinbox.pack(side='left')
+        camera_spinbox.pack(side='left', padx=(0, 5))
+        
+        # Botón para buscar cámaras
+        search_cam_btn = tk.Button(
+            camera_frame,
+            text="🔍",
+            command=self.search_cameras,
+            font=(self.base_font_family, 9),
+            bg='#f0f0f0',
+            fg='#111111',
+            padx=5,
+            pady=2,
+            cursor='hand2',
+            relief='flat'
+        )
+        search_cam_btn.pack(side='left')
         
     def create_settings_panel(self, parent):
         """
@@ -453,7 +474,9 @@ class PanoramaCreatorGUI:
         
         # Mensaje inicial
         self.log_message("💡 Sistema iniciado")
-        self.log_message("📱 Conecta tu iPhone para comenzar")
+        self.log_message("📱 Opciones:")
+        self.log_message("   1. Click 'Conectar' para usar iPhone")
+        self.log_message("   2. Click 'Subir secuencia' para usar archivos")
         
     def create_preview_panel(self, parent):
         """
@@ -512,6 +535,90 @@ class PanoramaCreatorGUI:
         self.status_text.see('end')
         self.status_text.config(state='disabled')
     
+    def _auto_connect(self):
+        """
+        Intenta conectar automáticamente al inicio.
+        Busca primero iPhone (índice 1), luego cualquier cámara disponible.
+        """
+        # Buscar cámaras disponibles
+        found = []
+        for i in range(3):  # Solo buscar 0, 1, 2
+            try:
+                cap = cv2.VideoCapture(i)
+                if cap.isOpened():
+                    ret, frame = cap.read()
+                    if ret and frame is not None:
+                        found.append(i)
+                    cap.release()
+            except:
+                pass
+        
+        if not found:
+            self.log_message("⚠️  No se encontraron cámaras disponibles")
+            self.log_message("💡 Usa 'Subir secuencia' para trabajar con archivos")
+            return
+        
+        # Preferir índice 1 si existe (iPhone)
+        if 1 in found:
+            self.camera_index_var.set(1)
+            self.log_message("📱 iPhone detectado (índice 1)")
+        else:
+            self.camera_index_var.set(found[0])
+            self.log_message(f"📷 Usando cámara {found[0]}")
+        
+        # Intentar conectar
+        try:
+            self.connect_camera()
+        except Exception as e:
+            pass
+    
+    def search_cameras(self):
+        """
+        Busca cámaras disponibles y muestra los resultados.
+        """
+        self.log_message("🔍 Buscando cámaras disponibles...")
+        
+        found = []
+        for i in range(6):
+            try:
+                cap = cv2.VideoCapture(i)
+                if cap.isOpened():
+                    ret, frame = cap.read()
+                    if ret and frame is not None:
+                        w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                        h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                        found.append(i)
+                        self.log_message(f"  ✓ Cámara {i}: {w}x{h}")
+                    cap.release()
+            except:
+                pass
+        
+        if not found:
+            self.log_message("❌ No se encontraron cámaras")
+            messagebox.showinfo(
+                "Sin Cámaras",
+                "No se encontraron cámaras disponibles.\n\n"
+                "Verifica:\n"
+                "• iPhone conectado y desbloqueado\n"
+                "• Continuity Camera activada\n"
+                "• Webcam no está siendo usada por otra app"
+            )
+        else:
+            self.log_message(f"✅ {len(found)} cámara(s) encontrada(s): {found}")
+            if len(found) == 1:
+                self.camera_index_var.set(found[0])
+                self.log_message(f"→ Usando cámara {found[0]}")
+            else:
+                msg = "Cámaras encontradas:\n\n"
+                for idx in found:
+                    cam_type = "iPhone (Continuity)" if idx == 1 else f"Cámara {idx}"
+                    msg += f"• Índice {idx}: {cam_type}\n"
+                msg += f"\n¿Usar cámara {found[0]}?"
+                
+                if messagebox.askyesno("Cámaras Encontradas", msg):
+                    self.camera_index_var.set(found[0])
+                    self.log_message(f"→ Usando cámara {found[0]}")
+    
     def connect_camera(self):
         """
         Conecta con la cámara del iPhone (vía Continuity Camera).
@@ -520,11 +627,24 @@ class PanoramaCreatorGUI:
         self.log_message(f"🔄 Intentando conectar con cámara {camera_index}...")
         
         try:
+            # Liberar cámara anterior si existe
+            if self.cap is not None:
+                self.cap.release()
+                self.cap = None
+            
             self.cap = cv2.VideoCapture(camera_index)
             
             # Verificar si se conectó correctamente
             if not self.cap.isOpened():
-                raise Exception("No se pudo abrir la cámara")
+                self.cap = None
+                raise Exception(f"No se pudo abrir la cámara en índice {camera_index}")
+            
+            # Intentar leer un frame para verificar que funciona
+            ret, frame = self.cap.read()
+            if not ret or frame is None:
+                self.cap.release()
+                self.cap = None
+                raise Exception("La cámara no responde correctamente")
             
             # Configurar resolución alta
             self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
@@ -545,15 +665,31 @@ class PanoramaCreatorGUI:
             
         except Exception as e:
             self.log_message(f"❌ Error: {str(e)}")
-            messagebox.showerror(
-                "Error de Conexión",
-                f"No se pudo conectar con el iPhone.\n\n"
-                f"Verifica:\n"
-                f"• Continuity Camera está activada\n"
-                f"• iPhone desbloqueado\n"
-                f"• Bluetooth y WiFi activados\n"
-                f"• Mismo Apple ID en ambos dispositivos"
-            )
+            self.log_message("💡 Puedes usar 'Subir secuencia' para trabajar con archivos")
+            
+            # Solo mostrar messagebox si el usuario hizo click manualmente en conectar
+            # (no en conexión automática al inicio)
+            # Esto se detecta verificando si han pasado más de 2 segundos desde que se inició la app
+            import time
+            if not hasattr(self, '_app_start_time'):
+                self._app_start_time = time.time()
+            
+            time_since_start = time.time() - self._app_start_time
+            
+            # Si han pasado más de 2 segundos, el usuario hizo click manualmente
+            if time_since_start > 2.0:
+                messagebox.showwarning(
+                    "Cámara No Disponible",
+                    f"No se pudo conectar con la cámara (índice {camera_index}).\n\n"
+                    f"Si estás usando iPhone (Continuity Camera):\n"
+                    f"• Asegúrate que Continuity Camera está activada\n"
+                    f"• iPhone desbloqueado\n"
+                    f"• Bluetooth y WiFi activados\n"
+                    f"• Mismo Apple ID en ambos dispositivos\n\n"
+                    f"También puedes:\n"
+                    f"• Probar otro índice de cámara (0, 2, etc.)\n"
+                    f"• Usar 'Subir secuencia' para trabajar con archivos"
+                )
     
     def disconnect_camera(self):
         """
@@ -589,40 +725,53 @@ class PanoramaCreatorGUI:
         if not self.preview_running or self.cap is None:
             return
         
-        ret, frame = self.cap.read()
-        
-        if ret:
-            # Convertir de BGR a RGB
-            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        try:
+            ret, frame = self.cap.read()
             
-            # Redimensionar para ajustar al canvas
-            canvas_width = self.preview_canvas.winfo_width()
-            canvas_height = self.preview_canvas.winfo_height()
-            
-            if canvas_width > 1 and canvas_height > 1:
-                h, w = frame_rgb.shape[:2]
-                scale = min(canvas_width / w, canvas_height / h)
-                new_w = int(w * scale)
-                new_h = int(h * scale)
+            if ret and frame is not None:
+                # Convertir de BGR a RGB
+                frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                 
-                frame_resized = cv2.resize(frame_rgb, (new_w, new_h))
+                # Redimensionar para ajustar al canvas
+                canvas_width = self.preview_canvas.winfo_width()
+                canvas_height = self.preview_canvas.winfo_height()
                 
-                # Convertir a ImageTk
-                image = Image.fromarray(frame_resized)
-                photo = ImageTk.PhotoImage(image)
+                if canvas_width > 1 and canvas_height > 1:
+                    h, w = frame_rgb.shape[:2]
+                    scale = min(canvas_width / w, canvas_height / h)
+                    new_w = int(w * scale)
+                    new_h = int(h * scale)
+                    
+                    frame_resized = cv2.resize(frame_rgb, (new_w, new_h))
+                    
+                    # Convertir a ImageTk
+                    image = Image.fromarray(frame_resized)
+                    photo = ImageTk.PhotoImage(image)
+                    
+                    # Actualizar canvas
+                    self.preview_canvas.delete('all')
+                    self.preview_canvas.create_image(
+                        canvas_width // 2,
+                        canvas_height // 2,
+                        image=photo,
+                        anchor='center'
+                    )
+                    self.preview_canvas.image = photo  # Mantener referencia
+            else:
+                # Si no se puede leer frame, detener preview
+                self.preview_running = False
+                self.log_message("⚠️  Preview detenido - no se pueden leer frames")
+                return
                 
-                # Actualizar canvas
-                self.preview_canvas.delete('all')
-                self.preview_canvas.create_image(
-                    canvas_width // 2,
-                    canvas_height // 2,
-                    image=photo,
-                    anchor='center'
-                )
-                self.preview_canvas.image = photo  # Mantener referencia
+        except Exception as e:
+            # Manejar errores silenciosamente y detener preview
+            self.preview_running = False
+            self.log_message(f"⚠️  Preview detenido - error: {str(e)}")
+            return
         
-        # Programar siguiente actualización
-        self.window.after(30, self.update_preview)
+        # Programar siguiente actualización solo si preview sigue activo
+        if self.preview_running:
+            self.window.after(30, self.update_preview)
     
     def start_capture_sequence(self):
         """
@@ -662,6 +811,8 @@ class PanoramaCreatorGUI:
             
             if ret:
                 self.captured_images.append(frame)
+                # Marcar que la secuencia proviene de la cámara
+                self.last_sequence_from_camera = True
                 progress = ((i + 1) / n_photos) * 100
                 self.progress_var.set(progress)
                 self.log_message(f"  ✓ Foto {i+1}/{n_photos} capturada")
@@ -738,6 +889,8 @@ class PanoramaCreatorGUI:
 
         # Reemplazar la secuencia capturada actual por las imágenes cargadas
         self.captured_images = loaded
+        # Indicar que esta secuencia NO viene de la cámara (para no aplicar flattening)
+        self.last_sequence_from_camera = False
         self.progress_var.set(100)
         self.process_btn.config(state='normal')
         self.save_btn.config(state='disabled')
@@ -771,18 +924,30 @@ class PanoramaCreatorGUI:
         Thread para crear panorama sin bloquear UI.
         """
         try:
+            # Si la secuencia proviene de la cámara, aplicar técnicas de "aplanamiento"
+            if self.last_sequence_from_camera:
+                self.window.after(0, lambda: self.log_message("  🛠️ Aplicando aplanamiento fotométrico a las imágenes..."))
+                # Ejecutar preprocesado (puede tardar un poco)
+                try:
+                    images_to_process = self._apply_photometric_flattening(self.captured_images)
+                except Exception as e:
+                    self.window.after(0, lambda: self.log_message(f"  ⚠️ Error en aplanamiento: {e}"))
+                    images_to_process = self.captured_images.copy()
+            else:
+                images_to_process = self.captured_images.copy()
+
             # Crear stitcher
             stitcher = PanoramaStitcher(
                 input_dir="temp",
                 output_dir=str(self.output_dir)
             )
-            
-            # Asignar imágenes directamente
-            stitcher.images = self.captured_images.copy()
-            
+
+            # Asignar imágenes (procesadas o originales según su origen)
+            stitcher.images = images_to_process
+
             self.window.after(0, lambda: self.log_message("  🔍 Detectando características..."))
             self.window.after(0, lambda: self.progress_var.set(25))
-            
+
             # Crear panorama
             result = stitcher.create_panorama(mode='panorama')
             
@@ -891,6 +1056,65 @@ class PanoramaCreatorGUI:
                     fill='#00ff88',
                     font=(self.base_font_family, 12, 'bold')
                 )
+
+    def _apply_photometric_flattening(self, images):
+        """
+        Aplica una serie de ajustes fotométricos para "aplanar" la apariencia
+        de una secuencia tomada con la cámara: balance de blancos (Gray World),
+        normalización de exposición y CLAHE en el canal L (LAB).
+
+        Devuelve una nueva lista de imágenes procesadas (BGR uint8).
+        """
+        processed = []
+
+        # Calcular la luminancia media objetivo (mediana de medias)
+        means = []
+        for img in images:
+            try:
+                gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+                means.append(np.mean(gray))
+            except Exception:
+                means.append(0)
+
+        if len(means) == 0:
+            return images.copy()
+
+        target = float(np.median(means)) if np.median(means) > 0 else 128.0
+
+        for img in images:
+            try:
+                # Trabajar en float32 para evitar recortes prematuros
+                imgf = img.astype(np.float32)
+
+                # --- Balance de blancos: Gray World simple ---
+                b_mean, g_mean, r_mean = np.mean(imgf[:, :, 0]), np.mean(imgf[:, :, 1]), np.mean(imgf[:, :, 2])
+                mean = (b_mean + g_mean + r_mean) / 3.0 + 1e-8
+                imgf[:, :, 0] *= (mean / (b_mean + 1e-8))
+                imgf[:, :, 1] *= (mean / (g_mean + 1e-8))
+                imgf[:, :, 2] *= (mean / (r_mean + 1e-8))
+
+                imgf = np.clip(imgf, 0, 255).astype(np.uint8)
+
+                # --- Normalización de exposición (lineal) ---
+                gray = cv2.cvtColor(imgf, cv2.COLOR_BGR2GRAY)
+                current_mean = np.mean(gray) + 1e-8
+                alpha = target / current_mean
+                imgf = cv2.convertScaleAbs(imgf, alpha=float(alpha), beta=0)
+
+                # --- Mejora de contraste local con CLAHE en L channel ---
+                lab = cv2.cvtColor(imgf, cv2.COLOR_BGR2LAB)
+                l, a, b = cv2.split(lab)
+                clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+                l = clahe.apply(l)
+                lab = cv2.merge((l, a, b))
+                imgf = cv2.cvtColor(lab, cv2.COLOR_LAB2BGR)
+
+                processed.append(imgf)
+            except Exception:
+                # Si ocurre cualquier error, devolver la copia original
+                processed.append(img.copy())
+
+        return processed
     
     def save_panorama(self):
         """
