@@ -1,9 +1,4 @@
-"""
-============================================================================
-MAIN - Punto de Entrada Principal
-============================================================================
-Lanza la aplicación de creación de panoramas
-"""
+# PUNTO DE ENTRADA PROYECTO
 
 import sys
 from pathlib import Path

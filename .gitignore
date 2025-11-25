@@ -1,6 +1,2 @@
 .DS_Store
-__pycache__/GUI.cpython-310.pyc
-__pycache__/GUI.cpython-312.pyc
-__pycache__/panorama_stitcher.cpython-310.pyc
-__pycache__/GUI.cpython-312.pyc
-/__pycache__
+__pycache__/

@@ -1,28 +1,3 @@
-"""
-============================================================================
-PANORAMA CREATOR - Control de Cámara iPhone
-============================================================================
-GUI para capturar secuencias de fotos desde iPhone (vía Continuity Camera)
-y crear panoramas automáticamente.
-
-Proyecto de Visión por Computador - Universidad de Deusto 2025-2026
-
-REQUISITOS:
-- macOS Ventura o posterior
-- iPhone con iOS 16+
-- Mismo Apple ID en ambos dispositivos
-- Bluetooth y WiFi activados
-
-USO:
-1. Conecta tu iPhone (aparecerá automáticamente como cámara)
-2. Ajusta configuración (número de fotos, intervalo)
-3. Click en "Iniciar Captura"
-4. Mueve el iPhone horizontalmente para cubrir la escena
-5. Espera el procesamiento automático
-6. ¡Panorama listo!
-============================================================================
-"""
-
 import cv2
 import numpy as np
 import tkinter as tk
@@ -35,19 +10,12 @@ import time
 from datetime import datetime
 import platform
 
-# Importar nuestro stitcher (archivo en subcarpeta 'panoramicaCreator')
+# Importar nuestro stitcher
 from panorama_stitcher import PanoramaStitcher
 
-
+# Interfaz gráfica para la creación de panoramas
 class PanoramaCreatorGUI:
-    """
-    Interfaz gráfica para crear panoramas usando iPhone como cámara remota.
-    """
-    
     def __init__(self):
-        """
-        Inicializa la ventana principal y todos los componentes.
-        """
         # Configuración de la ventana principal
         self.window = tk.Tk()
         self.window.title("Panorama Creator")
@@ -55,11 +23,10 @@ class PanoramaCreatorGUI:
         # Tema minimalista y claro
         self.window.configure(bg='#ffffff')
         
-        # --- Fuente moderna centralizada ---
-        # Elegir una familia moderna según plataforma y configurar fuentes por defecto
+        # Configuracion de fuentes
         sys_plat = platform.system()
         if sys_plat == 'Darwin':
-            base_family = 'Helvetica Neue'  # común en macOS
+            base_family = 'Helvetica Neue'
         elif sys_plat == 'Windows':
             base_family = 'Segoe UI'
         else:
@@ -71,7 +38,6 @@ class PanoramaCreatorGUI:
             default_font = tkfont.nametofont('TkDefaultFont')
             default_font.configure(family=self.base_font_family, size=11)
         except Exception:
-            # Si no es posible configurar, fallback silencioso
             pass
 
         # Ajustes para otros tipos de fuentes usados por Tk
@@ -83,21 +49,21 @@ class PanoramaCreatorGUI:
                 pass
         
         # Variables de estado
-        self.cap = None                    # Captura de video (iPhone)
-        self.is_capturing = False          # Estado de captura activa
-        self.captured_images = []          # Imágenes capturadas
-        self.panorama = None               # Panorama resultante
-        self.preview_running = False       # Estado del preview en vivo
-        self.last_sequence_from_camera = False  # True si la última secuencia vino desde la cámara
+        self.cap = None                    
+        self.is_capturing = False          
+        self.captured_images = []          
+        self.panorama = None               
+        self.preview_running = False       
+        self.last_sequence_from_camera = False  
         
         # Timestamp de inicio para detectar conexión automática vs manual
         import time
         self._app_start_time = time.time()
         
         # Variables de configuración (con valores por defecto)
-        self.n_photos_var = tk.IntVar(value=5)        # Número de fotos
-        self.interval_var = tk.DoubleVar(value=2.0)   # Intervalo entre fotos (segundos)
-        self.camera_index_var = tk.IntVar(value=0)    # Índice de cámara (0=primera disponible)
+        self.n_photos_var = tk.IntVar(value=5)        
+        self.interval_var = tk.DoubleVar(value=2.0)   
+        self.camera_index_var = tk.IntVar(value=0)    
         
         # Directorios
         self.output_dir = Path("output")
@@ -109,17 +75,15 @@ class PanoramaCreatorGUI:
         # Intentar conectar con el iPhone automáticamente
         # Usar after para no bloquear el inicio de la UI
         self.window.after(100, self._auto_connect)
-        
+
+    # Construir interfaz de usuario    
     def setup_ui(self):
-        """
-        Construye toda la interfaz de usuario.
-        """
-        # ==================== TÍTULO ====================
+        # Titulo
         title_frame = tk.Frame(self.window, bg='#ffffff', height=60)
         title_frame.pack(fill='x', pady=(0, 10))
         title_label = tk.Label(
             title_frame,
-            text="PANORAMA CREATOR",
+            text="CREA TU PANORÁMICA",
             font=(self.base_font_family, 22, 'bold'),
             bg='#ffffff',
             fg='#111111'
@@ -134,38 +98,36 @@ class PanoramaCreatorGUI:
         )
         subtitle_label.pack()
         
-        # ==================== CONTENEDOR PRINCIPAL ====================
+        # Contenedor principal
         main_container = tk.Frame(self.window, bg='#ffffff')
         main_container.pack(fill='both', expand=True, padx=20, pady=10)
         
         # Dividir en dos columnas: izquierda (controles) y derecha (preview)
         
-        # ========== COLUMNA IZQUIERDA: CONTROLES ==========
+        # Col. izquierda
         left_panel = tk.Frame(main_container, bg='#ffffff', width=400)
         left_panel.pack(side='left', fill='y', padx=(0, 10))
         
-        # --- Panel de Estado de Conexión ---
+        # Panel de Estado de Conexión
         self.create_connection_panel(left_panel)
         
-        # --- Panel de Configuración ---
+        # Panel de Configuración
         self.create_settings_panel(left_panel)
         
-        # --- Panel de Controles de Captura ---
+        # Panel de Controles de Captura
         self.create_capture_panel(left_panel)
         
-        # --- Panel de Estado ---
+        # Panel de Estado
         self.create_status_panel(left_panel)
         
-        # ========== COLUMNA DERECHA: PREVIEW ==========
+        # Col. derecha
         right_panel = tk.Frame(main_container, bg='#ffffff')
         right_panel.pack(side='right', fill='both', expand=True)
         
         self.create_preview_panel(right_panel)
-        
+    
+    # Panel de estado de conexion con el iPhone
     def create_connection_panel(self, parent):
-        """
-        Panel de estado de conexión con el iPhone.
-        """
         frame = tk.LabelFrame(
             parent,
             text="Conexión",
@@ -257,11 +219,9 @@ class PanoramaCreatorGUI:
             relief='flat'
         )
         search_cam_btn.pack(side='left')
-        
+
+    # Panel de configuracion de captura   
     def create_settings_panel(self, parent):
-        """
-        Panel de configuración de captura.
-        """
         frame = tk.LabelFrame(
             parent,
             text="Configuración",
@@ -341,11 +301,9 @@ class PanoramaCreatorGUI:
         # Actualizar resumen cuando cambian los valores
         self.n_photos_var.trace('w', lambda *args: self.update_config_summary())
         self.interval_var.trace('w', lambda *args: self.update_config_summary())
-        
+    
+    # Panel de botones de control de captura
     def create_capture_panel(self, parent):
-        """
-        Panel de botones de control de captura.
-        """
         frame = tk.LabelFrame(
             parent,
             text="Captura",
@@ -444,11 +402,9 @@ class PanoramaCreatorGUI:
             cursor='hand2'
         )
         self.clear_btn.pack(fill='x')
-        
+
+    # Panel de información de estado   
     def create_status_panel(self, parent):
-        """
-        Panel de información de estado.
-        """
         frame = tk.LabelFrame(
             parent,
             text="Estado",
@@ -477,11 +433,9 @@ class PanoramaCreatorGUI:
         self.log_message("📱 Opciones:")
         self.log_message("   1. Click 'Conectar' para usar iPhone")
         self.log_message("   2. Click 'Subir secuencia' para usar archivos")
-        
+    
+    # Panel de preview
     def create_preview_panel(self, parent):
-        """
-        Panel de preview de cámara y resultados.
-        """
         # Título del preview
         preview_title = tk.Label(
             parent,
@@ -509,37 +463,30 @@ class PanoramaCreatorGUI:
             font=(self.base_font_family, 14),
             tags='placeholder'
         )
-        
+
+    # Generar resumen de configuracion    
     def get_config_summary(self):
-        """Genera resumen de configuración."""
         n_photos = self.n_photos_var.get()
         interval = self.interval_var.get()
         total_time = n_photos * interval
         
-        return (f"📋 Configuración:\n"
+        return (f"Configuración:\n"
                 f"   • {n_photos} fotos\n"
                 f"   • {interval}s entre fotos\n"
                 f"   • Tiempo total: ~{total_time}s")
     
     def update_config_summary(self):
-        """Actualiza el resumen de configuración."""
         self.config_summary.config(text=self.get_config_summary())
     
     def log_message(self, message):
-        """
-        Añade un mensaje al log de estado.
-        """
         timestamp = datetime.now().strftime("%H:%M:%S")
         self.status_text.config(state='normal')
         self.status_text.insert('end', f"[{timestamp}] {message}\n")
         self.status_text.see('end')
         self.status_text.config(state='disabled')
     
+    # Intenta conectarse al iphone al principio
     def _auto_connect(self):
-        """
-        Intenta conectar automáticamente al inicio.
-        Busca primero iPhone (índice 1), luego cualquier cámara disponible.
-        """
         # Buscar cámaras disponibles
         found = []
         for i in range(3):  # Solo buscar 0, 1, 2
@@ -554,17 +501,16 @@ class PanoramaCreatorGUI:
                 pass
         
         if not found:
-            self.log_message("⚠️  No se encontraron cámaras disponibles")
-            self.log_message("💡 Usa 'Subir secuencia' para trabajar con archivos")
+            self.log_message("No se encontraron cámaras disponibles")
             return
         
         # Preferir índice 1 si existe (iPhone)
         if 1 in found:
             self.camera_index_var.set(1)
-            self.log_message("📱 iPhone detectado (índice 1)")
+            self.log_message("iPhone detectado (índice 1)")
         else:
             self.camera_index_var.set(found[0])
-            self.log_message(f"📷 Usando cámara {found[0]}")
+            self.log_message(f"Usando cámara {found[0]}")
         
         # Intentar conectar
         try:
@@ -572,11 +518,9 @@ class PanoramaCreatorGUI:
         except Exception as e:
             pass
     
+    # Busca camaras disponibles
     def search_cameras(self):
-        """
-        Busca cámaras disponibles y muestra los resultados.
-        """
-        self.log_message("🔍 Buscando cámaras disponibles...")
+        self.log_message("Buscando cámaras disponibles...")
         
         found = []
         for i in range(6):
@@ -594,17 +538,9 @@ class PanoramaCreatorGUI:
                 pass
         
         if not found:
-            self.log_message("❌ No se encontraron cámaras")
-            messagebox.showinfo(
-                "Sin Cámaras",
-                "No se encontraron cámaras disponibles.\n\n"
-                "Verifica:\n"
-                "• iPhone conectado y desbloqueado\n"
-                "• Continuity Camera activada\n"
-                "• Webcam no está siendo usada por otra app"
-            )
+            self.log_message("No se encontraron cámaras")
         else:
-            self.log_message(f"✅ {len(found)} cámara(s) encontrada(s): {found}")
+            self.log_message(f"{len(found)} cámara(s) encontrada(s): {found}")
             if len(found) == 1:
                 self.camera_index_var.set(found[0])
                 self.log_message(f"→ Usando cámara {found[0]}")
@@ -619,12 +555,11 @@ class PanoramaCreatorGUI:
                     self.camera_index_var.set(found[0])
                     self.log_message(f"→ Usando cámara {found[0]}")
     
+
+    # Conecta con la camara del iPhone (via Continuity Camera)
     def connect_camera(self):
-        """
-        Conecta con la cámara del iPhone (vía Continuity Camera).
-        """
         camera_index = self.camera_index_var.get()
-        self.log_message(f"🔄 Intentando conectar con cámara {camera_index}...")
+        self.log_message(f"Intentando conectar con cámara {camera_index}...")
         
         try:
             # Liberar cámara anterior si existe
@@ -664,12 +599,8 @@ class PanoramaCreatorGUI:
             self.update_preview()
             
         except Exception as e:
-            self.log_message(f"❌ Error: {str(e)}")
-            self.log_message("💡 Puedes usar 'Subir secuencia' para trabajar con archivos")
+            self.log_message(f"Error: {str(e)}")
             
-            # Solo mostrar messagebox si el usuario hizo click manualmente en conectar
-            # (no en conexión automática al inicio)
-            # Esto se detecta verificando si han pasado más de 2 segundos desde que se inició la app
             import time
             if not hasattr(self, '_app_start_time'):
                 self._app_start_time = time.time()
@@ -681,20 +612,10 @@ class PanoramaCreatorGUI:
                 messagebox.showwarning(
                     "Cámara No Disponible",
                     f"No se pudo conectar con la cámara (índice {camera_index}).\n\n"
-                    f"Si estás usando iPhone (Continuity Camera):\n"
-                    f"• Asegúrate que Continuity Camera está activada\n"
-                    f"• iPhone desbloqueado\n"
-                    f"• Bluetooth y WiFi activados\n"
-                    f"• Mismo Apple ID en ambos dispositivos\n\n"
-                    f"También puedes:\n"
-                    f"• Probar otro índice de cámara (0, 2, etc.)\n"
-                    f"• Usar 'Subir secuencia' para trabajar con archivos"
                 )
     
+    # Desconectar camara
     def disconnect_camera(self):
-        """
-        Desconecta la cámara.
-        """
         self.preview_running = False
         
         if self.cap:
@@ -706,7 +627,7 @@ class PanoramaCreatorGUI:
         self.disconnect_btn.config(state='disabled')
         self.capture_btn.config(state='disabled')
         
-        self.log_message("📱 iPhone desconectado")
+        self.log_message("iPhone desconectado")
         
         # Limpiar preview
         self.preview_canvas.delete('all')
@@ -718,10 +639,8 @@ class PanoramaCreatorGUI:
             tags='placeholder'
         )
     
+    # Actualizar el preview en vivo de la camara
     def update_preview(self):
-        """
-        Actualiza el preview en vivo de la cámara.
-        """
         if not self.preview_running or self.cap is None:
             return
         
@@ -760,23 +679,21 @@ class PanoramaCreatorGUI:
             else:
                 # Si no se puede leer frame, detener preview
                 self.preview_running = False
-                self.log_message("⚠️  Preview detenido - no se pueden leer frames")
+                self.log_message("Preview detenido - no se pueden leer frames")
                 return
                 
         except Exception as e:
             # Manejar errores silenciosamente y detener preview
             self.preview_running = False
-            self.log_message(f"⚠️  Preview detenido - error: {str(e)}")
+            self.log_message(f"Preview detenido - error: {str(e)}")
             return
         
         # Programar siguiente actualización solo si preview sigue activo
         if self.preview_running:
             self.window.after(30, self.update_preview)
     
+    # Inicia la captura de secuencia de fotos
     def start_capture_sequence(self):
-        """
-        Inicia la captura de secuencia de fotos.
-        """
         self.is_capturing = True
         self.captured_images = []
         self.capture_btn.config(state='disabled', text="⏸️ CAPTURANDO...")
@@ -786,9 +703,8 @@ class PanoramaCreatorGUI:
         n_photos = self.n_photos_var.get()
         interval = self.interval_var.get()
         
-        self.log_message(f"📸 Iniciando captura de {n_photos} fotos...")
-        self.log_message(f"⏱️ Intervalo: {interval}s entre fotos")
-        self.log_message("💡 Mueve el iPhone lentamente →")
+        self.log_message(f"Iniciando captura de {n_photos} fotos...")
+        self.log_message(f"Intervalo: {interval}s entre fotos")
         
         # Ejecutar captura en thread separado para no bloquear UI
         thread = threading.Thread(
@@ -799,9 +715,6 @@ class PanoramaCreatorGUI:
         thread.start()
     
     def _capture_sequence_thread(self, n_photos, interval):
-        """
-        Thread para capturar secuencia sin bloquear la UI.
-        """
         for i in range(n_photos):
             if not self.is_capturing:
                 break
@@ -818,10 +731,10 @@ class PanoramaCreatorGUI:
                 self.log_message(f"  ✓ Foto {i+1}/{n_photos} capturada")
                 
                 # Sonido de captura (opcional)
-                # print('\a')  # Beep del sistema
+                # print('\a')
                 
             else:
-                self.log_message(f"  ⚠️ Error capturando foto {i+1}")
+                self.log_message(f"Error capturando foto {i+1}")
             
             # Esperar intervalo (excepto en la última foto)
             if i < n_photos - 1:
@@ -831,31 +744,22 @@ class PanoramaCreatorGUI:
         self.is_capturing = False
         self.window.after(0, self._finish_capture)
     
+    # Finaliza proceso de captura y actualiza UI
     def _finish_capture(self):
-        """
-        Finaliza el proceso de captura y actualiza UI.
-        """
         self.capture_btn.config(state='normal', text="📸 INICIAR CAPTURA")
         
         if len(self.captured_images) > 0:
-            self.log_message(f"✅ Captura completada: {len(self.captured_images)} fotos")
+            self.log_message(f"Captura completada: {len(self.captured_images)} fotos")
             self.process_btn.config(state='normal')
             
             # Mostrar preview de la última imagen capturada
             self.show_image_in_preview(self.captured_images[-1], "Última foto capturada")
         else:
-            self.log_message("⚠️ No se capturaron imágenes")
+            self.log_message("No se capturaron imágenes")
             messagebox.showwarning("Captura Fallida", "No se pudieron capturar imágenes")
 
+    # Permite seleccionar secuencia de imgs desde el file system y las carga como si se hubieran sacado con la cámara
     def import_sequence_from_files(self):
-        """
-        Permite al usuario seleccionar una secuencia de imágenes desde el file system
-        y las carga en memoria como si hubieran sido capturadas desde la cámara.
-        """
-        # Abrir diálogo para seleccionar múltiples archivos de imagen
-        # Nota: en macOS tkinter espera que los patrones de filetypes sean
-        # una tupla de patrones (no separados por ';'). Usar una tupla evita
-        # errores nulos internos del binding con Tk.
         filepaths = filedialog.askopenfilenames(
             title="Selecciona imágenes (múltiples)",
             initialdir='.',
@@ -866,22 +770,22 @@ class PanoramaCreatorGUI:
         )
 
         if not filepaths:
-            self.log_message("⚠️ No se seleccionaron archivos")
+            self.log_message("No se seleccionaron archivos")
             return
 
-        self.log_message(f"📁 Cargando {len(filepaths)} archivos desde disco...")
+        self.log_message(f"Cargando {len(filepaths)} archivos desde disco...")
 
         loaded = []
         for p in filepaths:
             try:
                 img = cv2.imread(p)
                 if img is None:
-                    self.log_message(f"  ⚠️ No se pudo leer: {Path(p).name}")
+                    self.log_message(f"No se pudo leer: {Path(p).name}")
                 else:
                     loaded.append(img)
-                    self.log_message(f"  ✓ {Path(p).name} cargada")
+                    self.log_message(f"{Path(p).name} cargada")
             except Exception as e:
-                self.log_message(f"  ❌ Error leyendo {Path(p).name}: {str(e)}")
+                self.log_message(f"Error leyendo {Path(p).name}: {str(e)}")
 
         if len(loaded) == 0:
             messagebox.showwarning("Carga Fallida", "No se pudieron cargar las imágenes seleccionadas")
@@ -897,12 +801,10 @@ class PanoramaCreatorGUI:
 
         # Mostrar la última imagen en el preview
         self.show_image_in_preview(self.captured_images[-1], f"Última: {Path(filepaths[-1]).name}")
-        self.log_message(f"✅ Secuencia cargada: {len(self.captured_images)} imágenes listas para procesar")
+        self.log_message(f"Secuencia cargada: {len(self.captured_images)} imágenes listas para procesar")
     
+    # Procesa imagenes captuardas para crear el panorama
     def create_panorama(self):
-        """
-        Procesa las imágenes capturadas para crear el panorama.
-        """
         if len(self.captured_images) < 2:
             messagebox.showwarning(
                 "Imágenes Insuficientes",
@@ -910,7 +812,7 @@ class PanoramaCreatorGUI:
             )
             return
         
-        self.log_message("🔗 Creando panorama...")
+        self.log_message("Creando panorama...")
         self.process_btn.config(state='disabled', text="⏳ PROCESANDO...")
         self.progress_var.set(0)
         
@@ -919,19 +821,17 @@ class PanoramaCreatorGUI:
         thread.daemon = True
         thread.start()
     
+    # Crear el panorama sin bloquear UI
     def _create_panorama_thread(self):
-        """
-        Thread para crear panorama sin bloquear UI.
-        """
         try:
             # Si la secuencia proviene de la cámara, aplicar técnicas de "aplanamiento"
             if self.last_sequence_from_camera:
-                self.window.after(0, lambda: self.log_message("  🛠️ Aplicando aplanamiento fotométrico a las imágenes..."))
+                self.window.after(0, lambda: self.log_message("Aplicando aplanamiento fotométrico a las imágenes..."))
                 # Ejecutar preprocesado (puede tardar un poco)
                 try:
                     images_to_process = self._apply_photometric_flattening(self.captured_images)
                 except Exception as e:
-                    self.window.after(0, lambda: self.log_message(f"  ⚠️ Error en aplanamiento: {e}"))
+                    self.window.after(0, lambda: self.log_message(f"Error en aplanamiento: {e}"))
                     images_to_process = self.captured_images.copy()
             else:
                 images_to_process = self.captured_images.copy()
@@ -945,7 +845,7 @@ class PanoramaCreatorGUI:
             # Asignar imágenes (procesadas o originales según su origen)
             stitcher.images = images_to_process
 
-            self.window.after(0, lambda: self.log_message("  🔍 Detectando características..."))
+            self.window.after(0, lambda: self.log_message("Detectando características..."))
             self.window.after(0, lambda: self.progress_var.set(25))
 
             # Crear panorama
@@ -955,7 +855,7 @@ class PanoramaCreatorGUI:
                 raise Exception("No se pudo crear el panorama")
             
             self.window.after(0, lambda: self.progress_var.set(50))
-            self.window.after(0, lambda: self.log_message("  ✂️ Recortando bordes..."))
+            self.window.after(0, lambda: self.log_message("Recortando bordes..."))
             
             # Recortar bordes
             stitcher.crop_black_borders()
@@ -971,18 +871,16 @@ class PanoramaCreatorGUI:
         except Exception as e:
             self.window.after(0, lambda: self._finish_panorama_error(str(e)))
     
+    # Finaliza procesamiento exitoso
     def _finish_panorama_success(self):
-        """
-        Finaliza procesamiento exitoso.
-        """
         self.process_btn.config(state='disabled', text="🔗 CREAR PANORAMA")
         self.save_btn.config(state='normal')
         
         h, w = self.panorama.shape[:2]
         megapixels = (w * h) / (1024 * 1024)
         
-        self.log_message(f"✅ ¡Panorama creado exitosamente!")
-        self.log_message(f"📐 Dimensiones: {w}x{h} ({megapixels:.1f} MP)")
+        self.log_message(f"¡Panorama creado exitosamente!")
+        self.log_message(f"Dimensiones: {w}x{h} ({megapixels:.1f} MP)")
         
         # Mostrar panorama en preview
         self.show_image_in_preview(self.panorama, "Panorama Final")
@@ -994,12 +892,13 @@ class PanoramaCreatorGUI:
             f"Tamaño: {megapixels:.1f} megapíxeles"
         )
     
+    # Manejo de error en procesamiento
     def _finish_panorama_error(self, error_msg):
         """
         Maneja error en procesamiento.
         """
         self.process_btn.config(state='normal', text="🔗 CREAR PANORAMA")
-        self.log_message(f"❌ Error: {error_msg}")
+        self.log_message(f"Error: {error_msg}")
         
         messagebox.showerror(
             "Error de Procesamiento",
@@ -1011,10 +910,8 @@ class PanoramaCreatorGUI:
             f"• Mueve solo la cámara, no te muevas"
         )
     
+    # Muestra imagen en preview
     def show_image_in_preview(self, image, title=""):
-        """
-        Muestra una imagen en el preview.
-        """
         # Convertir de BGR a RGB si es necesario
         if len(image.shape) == 3 and image.shape[2] == 3:
             image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
@@ -1057,14 +954,8 @@ class PanoramaCreatorGUI:
                     font=(self.base_font_family, 12, 'bold')
                 )
 
+    # Aplanar la apariencia de una secuencia tomada con la camara
     def _apply_photometric_flattening(self, images):
-        """
-        Aplica una serie de ajustes fotométricos para "aplanar" la apariencia
-        de una secuencia tomada con la cámara: balance de blancos (Gray World),
-        normalización de exposición y CLAHE en el canal L (LAB).
-
-        Devuelve una nueva lista de imágenes procesadas (BGR uint8).
-        """
         processed = []
 
         # Calcular la luminancia media objetivo (mediana de medias)
@@ -1083,10 +974,9 @@ class PanoramaCreatorGUI:
 
         for img in images:
             try:
-                # Trabajar en float32 para evitar recortes prematuros
                 imgf = img.astype(np.float32)
 
-                # --- Balance de blancos: Gray World simple ---
+                # Balance de blancos:
                 b_mean, g_mean, r_mean = np.mean(imgf[:, :, 0]), np.mean(imgf[:, :, 1]), np.mean(imgf[:, :, 2])
                 mean = (b_mean + g_mean + r_mean) / 3.0 + 1e-8
                 imgf[:, :, 0] *= (mean / (b_mean + 1e-8))
@@ -1095,13 +985,13 @@ class PanoramaCreatorGUI:
 
                 imgf = np.clip(imgf, 0, 255).astype(np.uint8)
 
-                # --- Normalización de exposición (lineal) ---
+                # Normalización de exposición (lineal)
                 gray = cv2.cvtColor(imgf, cv2.COLOR_BGR2GRAY)
                 current_mean = np.mean(gray) + 1e-8
                 alpha = target / current_mean
                 imgf = cv2.convertScaleAbs(imgf, alpha=float(alpha), beta=0)
 
-                # --- Mejora de contraste local con CLAHE en L channel ---
+                # Mejora de contraste local con CLAHE en L channel
                 lab = cv2.cvtColor(imgf, cv2.COLOR_BGR2LAB)
                 l, a, b = cv2.split(lab)
                 clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
@@ -1116,10 +1006,8 @@ class PanoramaCreatorGUI:
 
         return processed
     
+    # Guardar panorama
     def save_panorama(self):
-        """
-        Guarda el panorama en disco.
-        """
         if self.panorama is None:
             return
         
@@ -1141,13 +1029,11 @@ class PanoramaCreatorGUI:
         
         if filepath:
             cv2.imwrite(filepath, self.panorama)
-            self.log_message(f"💾 Panorama guardado: {Path(filepath).name}")
+            self.log_message(f"Panorama guardado: {Path(filepath).name}")
             messagebox.showinfo("Guardado", f"Panorama guardado exitosamente en:\n{filepath}")
     
+    # Limpiar secuencia actual para empezar de nuevo
     def clear_sequence(self):
-        """
-        Limpia la secuencia actual para empezar de nuevo.
-        """
         self.captured_images = []
         self.panorama = None
         self.progress_var.set(0)
@@ -1155,28 +1041,23 @@ class PanoramaCreatorGUI:
         self.process_btn.config(state='disabled')
         self.save_btn.config(state='disabled')
         
-        self.log_message("🗑️ Secuencia limpiada - Lista para nueva captura")
+        self.log_message("Secuencia limpiada - Lista para nueva captura")
         
         # Volver al preview en vivo
         if self.cap and self.cap.isOpened():
             self.preview_running = True
             self.update_preview()
     
+    # Loop principal
     def run(self):
-        """
-        Inicia el loop principal de la aplicación.
-        """
         # Manejar cierre de ventana
         self.window.protocol("WM_DELETE_WINDOW", self.on_closing)
         
         # Iniciar aplicación
-        self.log_message("🚀 Aplicación lista")
+        self.log_message("Aplicación lista")
         self.window.mainloop()
     
     def on_closing(self):
-        """
-        Maneja el cierre de la aplicación.
-        """
         self.preview_running = False
         
         if self.cap:
@@ -1187,14 +1068,6 @@ class PanoramaCreatorGUI:
 
 
 def main():
-    """
-    Función principal - Punto de entrada.
-    """
-    print("\n" + "="*70)
-    print("🌅 PANORAMA CREATOR - iPhone Camera Control")
-    print("="*70)
-    print("Iniciando GUI...\n")
-    
     # Crear y ejecutar la aplicación
     app = PanoramaCreatorGUI()
     app.run()
