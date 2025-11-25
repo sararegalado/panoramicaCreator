@@ -20,6 +20,7 @@ class PanoramaCreatorGUI:
         self.window = tk.Tk()
         self.window.title("Panorama Creator")
         self.window.geometry("1200x800")
+        
         # Tema minimalista y claro
         self.window.configure(bg='#ffffff')
         
@@ -75,6 +76,7 @@ class PanoramaCreatorGUI:
         # Intentar conectar con el iPhone automáticamente
         # Usar after para no bloquear el inicio de la UI
         self.window.after(100, self._auto_connect)
+
 
     # Construir interfaz de usuario    
     def setup_ui(self):
@@ -838,7 +840,6 @@ class PanoramaCreatorGUI:
 
             # Crear stitcher
             stitcher = PanoramaStitcher(
-                input_dir="temp",
                 output_dir=str(self.output_dir)
             )
 
