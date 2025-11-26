@@ -353,6 +353,8 @@ class PanoramaCreatorGUI(ctk.CTk):
         try:
             ret, frame = self.cap.read()
             if ret:
+                if self.camera_index_var.get() == "0":
+                    frame = cv2.flip(frame, 1)  # Espejo para cámara frontal
                 frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                 self.display_image_on_canvas(frame_rgb)
             else:
