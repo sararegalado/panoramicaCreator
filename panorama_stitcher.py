@@ -20,13 +20,10 @@ class PanoramaStitcher:
 
 
     # Funcion para crear panorama
-    def create_panorama(self, mode='panorama'):
+    def create_panorama(self):
         
-        # Crear el objeto Stitcher según el modo seleccionado
-        if mode == 'scans':
-            stitcher = cv2.Stitcher_create(cv2.Stitcher_SCANS)
-        else:
-            stitcher = cv2.Stitcher_create(cv2.Stitcher_PANORAMA)
+        # Crear el objeto Stitcher
+        stitcher = cv2.Stitcher_create(cv2.Stitcher_PANORAMA)
         
         # Ejecutar el algoritmo de stitching
         status, panorama = stitcher.stitch(self.images)

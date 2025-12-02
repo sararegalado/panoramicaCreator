@@ -1,5 +1,3 @@
-# PUNTO DE ENTRADA PROYECTO
-
 import sys
 from pathlib import Path
 
