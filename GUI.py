@@ -205,7 +205,7 @@ class PanoramaCreatorGUI(ctk.CTk):
 
         # Botones Proceso
         self.process_btn = ctk.CTkButton(
-            frame, text="Crear Panorama", state="disabled", command=self.create_panorama
+            frame, text="Crear Panorámica", state="disabled", command=self.create_panorama
         )
         self.process_btn.pack(fill="x", padx=10, pady=5)
         
@@ -475,7 +475,7 @@ class PanoramaCreatorGUI(ctk.CTk):
             self.after(0, lambda: self._finish_panorama_error(str(e)))
 
     def _finish_panorama_success(self):
-        self.process_btn.configure(state="normal", text="Crear Panorama")
+        self.process_btn.configure(state="normal", text="Crear Panorámica")
         self.save_btn.configure(state="normal")
         
         h, w = self.panorama.shape[:2]
@@ -486,7 +486,7 @@ class PanoramaCreatorGUI(ctk.CTk):
         messagebox.showinfo("Éxito", "Panorama creado correctamente")
 
     def _finish_panorama_error(self, err):
-        self.process_btn.configure(state="normal", text="Crear Panorama")
+        self.process_btn.configure(state="normal", text="Crear Panorámica")
         self.log_message(f"ERROR: {err}")
         messagebox.showerror("Error", f"Fallo al crear panorama:\n{err}")
 
